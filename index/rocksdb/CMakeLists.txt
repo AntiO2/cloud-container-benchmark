@@ -1,0 +1,51 @@
+cmake_minimum_required(VERSION 3.10)
+project(rocksdb_bench LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_FLAGS "-O2 -pthread")
+
+# RocksDB
+include_directories(/usr/local/include)
+link_directories(/usr/local/lib)
+
+include(FetchContent)
+
+FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+
+add_executable(rocksdb_old_ts_test
+        rocksdb_test.cc
+        rocksdb_factory.cpp
+)
+
+
+target_link_libraries(rocksdb_old_ts_test
+        gtest gtest_main
+        rocksdb
+        pthread
+)
+
+
+add_executable(rocksdb_load
+        rocksdb_load.cpp
+        rocksdb_factory.cpp
+)
+
+target_link_libraries(rocksdb_load
+        gtest gtest_main
+        rocksdb
+        pthread
+)
+
+
+include(GoogleTest)
+gtest_discover_tests(rocksdb_old_ts_test)
+add_test(NAME rocksdb_old_ts_test_TESTS COMMAND rocksdb_old_ts_test)
+
