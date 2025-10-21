@@ -2,7 +2,8 @@
 // Created by antio2 on 2025/10/21.
 //
 
-#include "rocksdb_factory.h"
+
+
 #pragma once
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
@@ -11,15 +12,17 @@
 #include <memory>
 #include <vector>
 #include <iostream>
-
+#include "rocksdb_factory.h"
+#include "config.h"
+#include <rocksdb/comparator.h>
 using namespace rocksdb;
 
 std::unique_ptr<DB> createRocksDB(
-        const std::string& dbPath,
+        const Config& cfg,
         std::vector<std::unique_ptr<ColumnFamilyHandle>>& handles)
 {
     std::vector<std::string> existingColumnFamilies;
-    Status s = DB::ListColumnFamilies(DBOptions(), dbPath, &existingColumnFamilies);
+    Status s = DB::ListColumnFamilies(DBOptions(), cfg.db_path, &existingColumnFamilies);
 
     if (!s.ok()) {
         existingColumnFamilies = {kDefaultColumnFamilyName};
@@ -31,9 +34,15 @@ std::unique_ptr<DB> createRocksDB(
     if (!hasDefault)
         existingColumnFamilies.push_back(kDefaultColumnFamilyName);
 
+    // 根据 ts_type 设置 column family comparator
     std::vector<ColumnFamilyDescriptor> descriptors;
     for (const auto& name : existingColumnFamilies) {
-        descriptors.emplace_back(name, ColumnFamilyOptions());
+        ColumnFamilyOptions cfOptions;
+        if (cfg.ts_type == ts_type_t::udt) {
+            cfOptions.comparator = rocksdb::BytewiseComparatorWithU64Ts();
+        } else {
+        }
+        descriptors.emplace_back(name, cfOptions);
     }
 
     DBOptions dbOptions;
@@ -42,7 +51,7 @@ std::unique_ptr<DB> createRocksDB(
 
     DB* db = nullptr;
     std::vector<ColumnFamilyHandle*> rawHandles;
-    s = DB::Open(dbOptions, dbPath, descriptors, &rawHandles, &db);
+    s = DB::Open(dbOptions, cfg.db_path, descriptors, &rawHandles, &db);
     if (!s.ok()) {
         throw std::runtime_error("Failed to open RocksDB: " + s.ToString());
     }
@@ -51,6 +60,9 @@ std::unique_ptr<DB> createRocksDB(
     for (auto* h : rawHandles)
         handles.emplace_back(h);
 
-    std::cout << "Opened RocksDB: " << dbPath << ", CF=" << handles.size() << std::endl;
+    std::cout << "Opened RocksDB: " << cfg.db_path
+              << ", CF=" << handles.size()
+              << ", ts_type=" << (cfg.ts_type == ts_type_t::udt ? "UDT" : "Retina") << std::endl;
+
     return std::unique_ptr<DB>(db);
 }

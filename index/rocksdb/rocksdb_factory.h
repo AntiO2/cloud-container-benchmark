@@ -9,9 +9,9 @@
 #include <memory>
 #include <vector>
 #include <rocksdb/db.h>
-
+#include "config.h"
 std::unique_ptr<rocksdb::DB> createRocksDB(
-        const std::string& dbPath,
+        const Config& cfg,
         std::vector<std::unique_ptr<rocksdb::ColumnFamilyHandle>>& handles);
 
 #endif //ROCKSDB_BENCH_ROCKSDB_FACTORY_H

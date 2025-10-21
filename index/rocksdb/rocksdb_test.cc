@@ -26,8 +26,7 @@ protected:
 
         if (cfg.destroy_before_start)
             DestroyDB(cfg.db_path, options);
-
-        db = createRocksDB(cfg.db_path, handles);
+        db = createRocksDB(cfg, handles);
     }
 
     void TearDown() override {
@@ -52,23 +51,30 @@ protected:
 
     long long getUniqueRowId(int indexId, int key, long long timestamp) {
         ReadOptions ropt;
-        std::unique_ptr<Iterator> it(db->NewIterator(ropt));
-        std::string seekKey = encodeKey(indexId, key, timestamp);
-        it->SeekForPrev(seekKey);
+        std::string val_str;
 
-        if (!it->Valid()) {
-            return -1;
+        if (cfg.ts_type == ts_type_t::udt) {
+            // Convert timestamp to Slice
+            std::string ts_buf;
+            Slice tsSlice = EncodeU64Ts(timestamp, &ts_buf);  // helper function
+            ropt.timestamp = &tsSlice;
+            std::string k = encodeKey(indexId, key, 0);       // key part only
+            Status s = db->Get(ropt, k, &val_str);
+            if (!s.ok()) return -1;
+        } else {
+            std::string k = encodeKey(indexId, key, timestamp);
+            Status s = db->Get(ropt, k, &val_str);
+            if (!s.ok()) return -1;
         }
 
-        const Slice val = it->value();
         long long rowId;
-        memcpy(&rowId, val.data(), sizeof(rowId));
+        memcpy(&rowId, val_str.data(), sizeof(rowId));
         return rowId;
     }
+
 public:
     void threadWorker(int indexId, std::atomic<long long>& counter) {
         std::mt19937_64 rng(std::random_device{}());
-        WriteOptions wopt;
 
         for (int i = 0; i < cfg.ops_per_thread; ++i) {
             int key = i % cfg.id_range;
@@ -76,9 +82,18 @@ public:
             long long oldRow = getUniqueRowId(indexId, key, ts);
             long long newRow = (oldRow == -1) ? rng() : oldRow + 1;
 
-            std::string k = encodeKey(indexId, key, ts);
-            std::string v = encodeValue(newRow);
-            db->Put(wopt, k, v);
+            WriteOptions wopt;
+            if (cfg.ts_type == ts_type_t::udt) {
+                std::string ts_buf;
+                Slice tsSlice = EncodeU64Ts(ts, &ts_buf);
+                std::string k = encodeKey(indexId, key, 0); // key without timestamp
+                std::string v = encodeValue(newRow);
+                db->Put(wopt, k, tsSlice, v);
+            } else {
+                std::string k = encodeKey(indexId, key, ts);
+                std::string v = encodeValue(newRow);
+                db->Put(wopt, k, v);
+            }
 
             counter.fetch_add(1, std::memory_order_relaxed);
         }
@@ -103,7 +118,7 @@ TEST_F(RocksDBPerfTest, MultiThreadPerf)
 
     std::cout << "Total ops: " << totalOps
               << ", time: " << sec << "s, throughput: "
-              << (totalOps / sec) << " ops/s" << std::endl;
+              << (long long)(totalOps / sec) << " ops/s" << std::endl;
 
     ASSERT_GT(totalOps, 0);
 }
