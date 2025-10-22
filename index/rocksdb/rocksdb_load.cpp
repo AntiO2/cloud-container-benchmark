@@ -49,10 +49,11 @@ private:
         std::vector<std::thread> threads;
         std::atomic<long long> counter{0};
         long long timestamp = 0;
-        std::string tsBuffer;
-        const Slice& tsSlice = longToSlice(timestamp, tsBuffer);
+        std::string tsBuffer(8, '\0');
+        const Slice& tsSlice = EncodeU64Ts(timestamp, &tsBuffer);
         for (int t = 0; t < cfg->thread_num_; ++t) {
-            threads.emplace_back([this, t, &counter, timestamp, &tsSlice]() {
+//            threads.emplace_back([this, t, &counter, timestamp, &tsSlice]()
+            {
                 WriteOptions wopt;
                 for (int key = 0; key < cfg->id_range_; ++key) {
                     std::string k = encodeKey(*cfg, t, key, timestamp);
@@ -64,7 +65,9 @@ private:
                     }
                     counter.fetch_add(1, std::memory_order_relaxed);
                 }
-            });
+            }
+
+//            );
         }
         for (auto& th : threads) th.join();
         std::cout << "Total loaded: " << counter.load() << " entries" << std::endl;
@@ -94,4 +97,39 @@ TEST_F(RocksDBSequentialLoadTest, SequentialLoadAsc1k) {
 
 TEST_F(RocksDBSequentialLoadTest, SequentialLoadDesc1k) {
     test(Preset::Desc1k);
+}
+
+TEST(RocksDBSmallTest, UDT) {
+    Preset preset = Preset::Udt1k;
+    std::vector<std::unique_ptr<ColumnFamilyHandle>> handles;
+    auto cfg = std::make_unique<Config>(preset);
+    {
+        Options options;
+        options.create_if_missing = true;
+        if (cfg->destroy_before_start_) {
+            DestroyDB(cfg->db_path_, options);
+        }
+    }
+
+    auto db = createRocksDB(*cfg, handles);
+
+    std::string tsBuf = std::string(8, '\0');
+    long long timestamp = 1761139362806988526;
+    auto ts = EncodeU64Ts(timestamp, &tsBuf);
+
+    WriteOptions wopt;
+    std::string key = "abc";
+    std::string value = "ray";
+    db->Put(wopt, key, ts, value);
+
+    ReadOptions ropt;
+    long long timestamp2 = 1761139362806988525;
+    auto ts2 = EncodeU64Ts(timestamp2, &tsBuf);
+    ropt.timestamp = &ts2;
+    std::string rvalue = std::string(8, '\0');
+    auto s = db->Get(ropt, key, &rvalue);
+    s.AssertOK();
+    std::cout << rvalue << std::endl;
+    handles.clear();
+    db = nullptr;
 }

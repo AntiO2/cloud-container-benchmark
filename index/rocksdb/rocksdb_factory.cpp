@@ -15,6 +15,10 @@
 #include "rocksdb_factory.h"
 #include "config.h"
 #include <rocksdb/comparator.h>
+#include <rocksdb/table.h>
+#include <rocksdb/filter_policy.h>
+#include <rocksdb/slice_transform.h>
+
 using namespace rocksdb;
 
 std::unique_ptr<DB> initRocksDB(
@@ -23,9 +27,6 @@ std::unique_ptr<DB> initRocksDB(
 {
     Options options;
     options.create_if_missing = true;
-
-    if (cfg.destroy_before_start_)
-        DestroyDB(cfg.db_path_, options);
     return createRocksDB(cfg, handles);
 }
 
@@ -46,7 +47,6 @@ std::unique_ptr<DB> createRocksDB(
     if (!hasDefault)
         existingColumnFamilies.push_back(kDefaultColumnFamilyName);
 
-    // 根据 ts_type 设置 column family comparator
     std::vector<ColumnFamilyDescriptor> descriptors;
     for (const auto& name : existingColumnFamilies) {
         ColumnFamilyOptions cfOptions;
@@ -55,6 +55,16 @@ std::unique_ptr<DB> createRocksDB(
         } else {
         }
         descriptors.emplace_back(name, cfOptions);
+
+        if(cfg.ts_type_ == ts_type_t::embed_desc)
+        {
+            rocksdb::BlockBasedTableOptions table_options;
+            table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
+            table_options.whole_key_filtering = false;
+
+            cfOptions.prefix_extractor.reset(rocksdb::NewFixedPrefixTransform(8));
+            cfOptions.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
+        }
     }
 
     DBOptions dbOptions;

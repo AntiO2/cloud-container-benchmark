@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.10)
 project(rocksdb_bench LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_FLAGS "-O2 -pthread")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -frtti")
 
 # RocksDB

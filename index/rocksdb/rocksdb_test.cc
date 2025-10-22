@@ -53,10 +53,10 @@ protected:
     
     long long getUniqueRowId(int indexId, int key, long long timestamp) {
         ReadOptions ropt;
-        std::string val_str;
+        std::string val_str(8, '\0');
         std::string k = encodeKey(*cfg, indexId, key, timestamp);
+        std::string ts_buf(8, '\0');
         switch (cfg->ts_type_) {
-
             case ts_type_t::embed_asc:
             {
                 std::unique_ptr<Iterator> it(db->NewIterator(ropt));
@@ -71,23 +71,38 @@ protected:
             case ts_type_t::embed_desc:
             {
                 std::unique_ptr<Iterator> it(db->NewIterator(ropt));
-                it->Seek(k);
-                if (!it->Valid()) return -1;
-                const Slice val = it->value();
-                long long rowId;
-                memcpy(&rowId, val.data(), sizeof(rowId));
+                Slice prefix(k.data(), 8);
+                it->Seek(prefix);
+                long long rowId = -1;
+                uint64_t bestTs = 0;
+                for (; it->Valid() && it->key().starts_with(prefix); it->Next()) {
+                    const Slice curKey = it->key();
+                    if(curKey.size() != 16)
+                    {
+                        return -1;
+                    }
+                    uint64_t ts;
+                    Slice tsSlice(curKey.data() + 8, 8);
+                    DecodeU64Ts(tsSlice, &ts);
+                    auto real_ts = LONG_LONG_MAX - ts;
+                    if (real_ts < timestamp) {
+                        const Slice val = it->value();
+                        memcpy(&rowId, val.data(), sizeof(rowId));
+                        break;
+                    }
+                }
                 return rowId;
             }
-
             case ts_type_t::udt:
             {
-                std::string ts_buf;
                 Slice tsSlice = EncodeU64Ts(timestamp, &ts_buf);
                 ropt.timestamp = &tsSlice;
-
-                Status s = db->Get(ropt, k, &val_str, &ts_buf);
+                Status s = db->Get(ropt, k, &val_str);
                 if (!s.ok()) {
-                    if (s.IsNotFound()) return -1;
+                    if (s.IsNotFound())
+                    {
+                        return -1;
+                    }
                     std::cerr << "DB Get failed: " << s.ToString() << std::endl;
                     return -1;
                 }
@@ -104,8 +119,9 @@ public:
 
         for (int i = 0; i < cfg->ops_per_thread_; ++i) {
             int key = i % cfg->id_range_;
-            long long ts = std::chrono::system_clock::now().time_since_epoch().count();
+            uint64_t ts = std::chrono::system_clock::now().time_since_epoch().count();
             long long oldRow = getUniqueRowId(indexId, key, ts);
+            ASSERT_GE(oldRow, 0);
             long long newRow = (oldRow == -1) ? rng() : oldRow + 1;
             std::string k = encodeKey(*cfg, indexId, key, ts);
             std::string v = encodeValue(newRow);
