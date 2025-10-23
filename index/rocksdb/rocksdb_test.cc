@@ -70,27 +70,14 @@ protected:
             }
             case ts_type_t::embed_desc:
             {
+                ropt.prefix_same_as_start = true;
                 std::unique_ptr<Iterator> it(db->NewIterator(ropt));
-                Slice prefix(k.data(), 8);
-                it->Seek(prefix);
-                long long rowId = -1;
-                uint64_t bestTs = 0;
-                for (; it->Valid() && it->key().starts_with(prefix); it->Next()) {
-                    const Slice curKey = it->key();
-                    if(curKey.size() != 16)
-                    {
-                        return -1;
-                    }
-                    uint64_t ts;
-                    Slice tsSlice(curKey.data() + 8, 8);
-                    DecodeU64Ts(tsSlice, &ts);
-                    auto real_ts = LONG_LONG_MAX - ts;
-                    if (real_ts < timestamp) {
-                        const Slice val = it->value();
-                        memcpy(&rowId, val.data(), sizeof(rowId));
-                        break;
-                    }
-                }
+                it->Seek(k);
+                if (!it->Valid()) return -1;
+
+                const Slice val = it->value();
+                long long rowId;
+                memcpy(&rowId, val.data(), sizeof(rowId));
                 return rowId;
             }
             case ts_type_t::udt:
