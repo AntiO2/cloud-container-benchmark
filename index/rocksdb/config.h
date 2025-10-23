@@ -7,6 +7,7 @@
 
 #pragma once
 #include <string>
+#include <sstream>
 
 enum class ts_type_t {
     embed_asc,
@@ -36,7 +37,7 @@ struct Config {
 public:
     using scale_t = int;
 
-    const std::string db_path_prefix = "/tmp/rocksdb"; // hard code
+    const std::string db_path_prefix = "/home/ubuntu/disk1"; // hard code
     std::string db_path_;
     int thread_num_;
     int id_range_;
@@ -57,7 +58,7 @@ public:
         destroy_before_start_ = true;
         ts_type_ = ts_type;
         std::ostringstream oss;
-        oss << "/tmp/rocksdb/" << "test_" << id_range_ << "_" << ts_type_;
+        oss << db_path_prefix << "/test_" << id_range_ << "_" << ts_type_;
         db_path_ = oss.str();
     }
 private:
