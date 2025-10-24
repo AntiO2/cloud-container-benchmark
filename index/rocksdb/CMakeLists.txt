@@ -9,15 +9,13 @@ include_directories(/usr/local/include)
 link_directories(/usr/local/lib)
 
 include(FetchContent)
-
 FetchContent_Declare(
         googletest
-        URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG release-1.12.1
 )
-
 FetchContent_MakeAvailable(googletest)
-
 enable_testing()
 
 add_executable(rocksdb_ts_test
@@ -39,7 +37,7 @@ target_link_libraries(rocksdb_ts_test
         snappy
         lz4
         zstd
-
+        bz2
 )
 
 target_link_libraries(rocksdb_load
@@ -51,7 +49,7 @@ target_link_libraries(rocksdb_load
         snappy
         lz4
         zstd
-
+        bz2
 )
 
 include(GoogleTest)

@@ -127,7 +127,7 @@ TEST(RocksDBSmallTest, UDT) {
     ropt.timestamp = &ts2;
     std::string rvalue = std::string(8, '\0');
     auto s = db->Get(ropt, key, &rvalue);
-    s.AssertOK();
+    ASSERT_TRUE(s.ok());
     std::cout << rvalue << std::endl;
     handles.clear();
     db = nullptr;
