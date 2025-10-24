@@ -54,7 +54,6 @@ std::unique_ptr<DB> createRocksDB(
             cfOptions.comparator = rocksdb::BytewiseComparatorWithU64Ts();
         } else {
         }
-        descriptors.emplace_back(name, cfOptions);
 
         if(cfg.ts_type_ == ts_type_t::embed_desc)
         {
@@ -65,6 +64,9 @@ std::unique_ptr<DB> createRocksDB(
             cfOptions.prefix_extractor.reset(rocksdb::NewFixedPrefixTransform(8));
             cfOptions.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
         }
+
+        cfOptions.write_buffer_size = (size_t)6 << 30;
+        descriptors.emplace_back(name, cfOptions);
     }
 
     DBOptions dbOptions;

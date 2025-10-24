@@ -52,7 +52,7 @@ private:
         std::string tsBuffer(8, '\0');
         const Slice& tsSlice = EncodeU64Ts(timestamp, &tsBuffer);
         for (int t = 0; t < cfg->thread_num_; ++t) {
-//            threads.emplace_back([this, t, &counter, timestamp, &tsSlice]()
+            threads.emplace_back([this, t, &counter, timestamp, &tsSlice]()
             {
                 WriteOptions wopt;
                 for (int key = 0; key < cfg->id_range_; ++key) {
@@ -66,8 +66,7 @@ private:
                     counter.fetch_add(1, std::memory_order_relaxed);
                 }
             }
-
-//            );
+            );
         }
         for (auto& th : threads) th.join();
         std::cout << "Total loaded: " << counter.load() << " entries" << std::endl;
